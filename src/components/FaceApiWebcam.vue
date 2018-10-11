@@ -1,9 +1,11 @@
 <template>
     <div>
-        <button ref="start" v-on:click="start()" disabled="true">Loading ...</button>
-        <button ref="mtcnn" v-on:click="mtcnn()" disabled="true">MTCNN</button>
+        <button ref="start" v-on:click="ssdMobilenet()" disabled="true">SSD Mobile</button>
         <button ref="yolo" v-on:click="yolo()" disabled="true">Tiny Yolo</button>
-        <button ref="stop" v-on:click="stopStream()">Stop Stream</button>
+        <button ref="mtcnn" v-on:click="mtcnn()" disabled="true">MTCNN</button>
+        <img ref="processing" alt="processing" src="../../node_modules/material-design-icons/navigation/1x_web/ic_refresh_black_24dp.png" 
+            class="spin" style="display:inline-block;vertical-align:middle" />
+        <button ref="stop" v-on:click="stopStream()" disabled="true">Stop Stream</button>
         <div style="position:relative">
             <video ref="video" width="640" height="480"></video><br>
             <canvas ref="canvas" style="position:absolute;top:0px;left:0px;" width="640" height="480"></canvas>
@@ -20,43 +22,47 @@ export default {
         };
     },
     methods: {
-        start: async function() {
+        ssdMobilenet: async function() {
             console.clear();
+            const stopp = this.$refs.stop;
             const video = this.$refs.video;
             const canvas = this.$refs.canvas;
-            const detect = async function() {
+            const detectssd = async function() { console.log('detectssd');
                 //const minConfidence = 0.5, maxResults = 10;
                 const detections = await face.ssdMobilenetv1(video);//, minConfidence, maxResults);
                 if (detections) {
-                    console.log(detections);
                     canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
                     const detectionsForSize = detections.map(det => det.forSize(video.width, video.height));
                     face.drawDetection(canvas, detectionsForSize, {withScore: false});                
                 } else {
                     canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
+                }                
+                if (!video.paused) {
+                    detectssd();
                 }
-                detect();
             };
             navigator.getMedia = (navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia);
 			navigator.getMedia({video:true, audio:false},
 				function (mediaStream) {
 					video.srcObject = mediaStream;
                     video.play();
-                    setTimeout(function() {detect()}, 2000);
+                    stopp.disabled = false;
+                    setTimeout(function() {detectssd()}, 1500);
 				},
 				function (error) {
 					console.log(error);
                 }
             );
         },
-        mtcnn: async function() {
+        mtcnn: async function() { 
             //await face.loadMtcnnModel('../../faceapi/weights/');
             console.clear();
+            const stopp = this.$refs.stop;
             const video = this.$refs.video;
             const canvas = this.$refs.canvas;
-            const detect = async function() {                
+            const detectmtcnn = async function() { console.log('detectmtcnn');              
                 const forwardParams = {maxNumScales:10,scaleFactor:0.709,scoreThresholds:[0.6,0.7,0.7],minFaceSize:200,scaleSteps:[0.4, 0.2, 0.1, 0.05]};
-                const detections = await face.mtcnn(video, forwardParams);
+                const detections = await face.mtcnn(video, forwardParams); //console.log('detectmtcnn after');
                 if (detections.length > 0) {
                     canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
                     detections.forEach(fd => {
@@ -68,14 +74,17 @@ export default {
                 } else {
                     canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
                 }
-                detect();
+                if (!video.paused) {
+                    detectmtcnn();
+                }
             };
             navigator.getMedia = (navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia);
 			navigator.getMedia({video:true, audio:false},
 				function (mediaStream) {
 					video.srcObject = mediaStream;
                     video.play();
-                    setTimeout(function() {detect()}, 1000);
+                    stopp.disabled = false;
+                    setTimeout(function() {detectmtcnn()}, 1500);
 				},
 				function (error) {
 					console.log(error);
@@ -85,33 +94,22 @@ export default {
         yolo: async function() {
             //await face.loadMtcnnModel('../../faceapi/weights/');
             console.clear();
+            const stopp = this.$refs.stop;
             const video = this.$refs.video;
             const canvas = this.$refs.canvas;
-            let keepGoing = true;
-            video.addEventListener('playing', () => { console.log('video is playing'); });
-            video.addEventListener('play', () => { console.log('play'); });
-            video.addEventListener('pause', () => { console.log('pause'); keepGoing = false; });
-            const detect = async function() {                
+            const detectyolo = async function() { console.log('detectyolo');            
                 const forwardParams = {scoreThreshold:0.5,inputSize:'md'};
                 const detections = await face.tinyYolov2(video, forwardParams);
-                console.log(detections);
                 if (detections.length > 0) {
-                    console.log(detections);
                     canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
                     detections.forEach(fd => {
                         face.drawDetection(canvas, fd);
                     });
-                    if (keepGoing) {
-                        setTimeout(function() {
-                            console.log('keep going');   
-                            detect();                         
-                        }, 2000);
-                    }
                 } else {
                     canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
-                    if (keepGoing) {
-                        detect();
-                    }
+                }
+                if (!video.paused) {
+                    setTimeout(function() {detectyolo()}, 1000);
                 }
             };
             navigator.getMedia = (navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia);
@@ -119,7 +117,8 @@ export default {
 				function (mediaStream) {
 					video.srcObject = mediaStream;
                     video.play();
-                    setTimeout(function() {detect()}, 1000);
+                    stopp.disabled = false;
+                    setTimeout(function() {detectyolo()}, 1500);
 				},
 				function (error) {
 					console.log(error);
@@ -130,7 +129,8 @@ export default {
             const video = this.$refs.video; 
             video.pause();
 			video.srcObject.getVideoTracks().forEach(track => track.stop());
-			video.srcObject.getAudioTracks().forEach(track => track.stop());
+            video.srcObject.getAudioTracks().forEach(track => track.stop());
+            this.$refs.stop.disabled = true;
         }
     },
     created: async function() {
@@ -140,7 +140,7 @@ export default {
         this.$refs.start.disabled = false;
         this.$refs.mtcnn.disabled = false;
         this.$refs.yolo.disabled = false;
-        this.$refs.start.innerHTML = 'SSD Mobilenet';
+        this.$refs.processing.style.display = 'none';
     }
 };
 </script>
